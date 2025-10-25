@@ -1,0 +1,82 @@
+appId: com.mesamate.robot
+productName: MesaMate Robot
+copyright: Copyright © 2024 MesaMate
+defaultArch: armv7l
+directories:
+  output: dist
+  buildResources: resources
+files:
+  - from: .
+    filter:
+      - package.json
+      - app
+      - main
+      - renderer
+      - node_modules
+      - "!node_modules/**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}"
+      - "!.editorconfig"
+      - "!**/._*"
+      - "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}"
+      - "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}"
+      - "!**/{appveyor.yml,.travis.yml,circle.yml}"
+      - "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+
+# Linux build configuration
+linux:
+  target:
+    - AppImage
+  category: Utility
+  icon: resources/icon-fixed.png
+  description: Professional table management system for restaurant operations
+  maintainer: MesaMate Team
+  vendor: MesaMate
+  desktop:
+    Name: MesaMate Robot
+    Comment: Professional table management system
+    Keywords: restaurant;robot;delivery;table;management
+    StartupWMClass: MesaMate Robot
+  executableName: mesamate-robot
+
+# AppImage specific settings
+appImage:
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+
+# DEB package settings
+deb:
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libdrm2
+    - libxcomposite1
+    - libxdamage1
+    - libxrandr2
+    - libgbm1
+    - libxkbcommon0
+    - libasound2
+
+# RPM package settings
+rpm:
+  artifactName: "${productName}-${version}-${arch}.${ext}"
+  depends:
+    - gtk3
+    - libnotify
+    - nss
+    - libXScrnSaver
+    - libXtst
+    - xdg-utils
+    - at-spi2-atk
+    - libdrm
+    - libXcomposite
+    - libXdamage
+    - libXrandr
+    - mesa-libgbm
+    - libxkbcommon
+    - alsa-lib
+
+publish: null
