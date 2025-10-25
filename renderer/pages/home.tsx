@@ -43,7 +43,6 @@ export default function HomePage() {
   return (
     <React.Fragment>
       <Head>
-        <title>MesaMate - Table Management System</title>
         <meta
           name="description"
           content="Professional table management system"
