@@ -320,9 +320,10 @@ export default function DeliverySystem({
       const keepAliveInterval = setInterval(() => {
         // Force a small DOM update to keep renderer responsive
         if (isMountedRef.current) {
+          // Minimal operation to keep renderer responsive without changing title
           const now = Date.now();
-          // This is a minimal operation that won't cause issues
-          document.title = `MesaMate - ${now % 1000}`;
+          // Just access a DOM property to keep things active
+          document.body.style.display = document.body.style.display;
         }
       }, 100);
 
