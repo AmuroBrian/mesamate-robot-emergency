@@ -39,9 +39,6 @@ export default function DeliverySystem({
     deliveryStatus: "moving",
   });
 
-  const [arduinoConnected, setArduinoConnected] = useState(false);
-  const [obstructed, setObstructed] = useState(false);
-
   const [deliveryProgress, setDeliveryProgress] = useState({
     totalSteps: 0,
     completedSteps: 0,
@@ -66,41 +63,6 @@ export default function DeliverySystem({
       startDelivery();
     }
   }, [selectedTables]);
-
-  // Check Arduino connection status
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        const connected = await window.robot.isConnected();
-        setArduinoConnected(connected);
-      } catch (error) {
-        console.error("Failed to check Arduino connection:", error);
-        setArduinoConnected(false);
-      }
-    };
-
-    checkConnection();
-    const interval = setInterval(checkConnection, 5000); // Check every 5 seconds
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Subscribe to obstacle events from robot
-  useEffect(() => {
-    if (!(window as any).robotEvents) return;
-    const unsubscribe = (window as any).robotEvents.onObstacleEvent(
-      (msg: string) => {
-        if (msg === "OBSTACLE:DETECTED" || msg === "MOVEMENT_PAUSED:OBSTACLE") {
-          setObstructed(true);
-        } else if (msg === "OBSTACLE:CLEARED" || msg === "MOVEMENT_RESUMED") {
-          setObstructed(false);
-        }
-      }
-    );
-    return () => {
-      if (typeof unsubscribe === "function") unsubscribe();
-    };
-  }, []);
 
   // Helper function to calculate required turn angle
   const calculateTurnAngle = (
@@ -230,45 +192,12 @@ export default function DeliverySystem({
       const turnAngle = calculateTurnAngle(currentDir, targetDir);
       console.log(`Turn angle: ${turnAngle}°, Target direction: ${targetDir}`);
 
-      // Send Arduino commands (only if Arduino is connected)
-      if (arduinoConnected) {
-        try {
-          // Commands now return immediately (non-blocking) to keep renderer responsive
+      // Simulate movement with 5 seconds per tile
+      console.log(`Simulating movement to (${nextPos.x}, ${nextPos.y})`);
+      console.log(`Turn angle: ${turnAngle}°, Target direction: ${targetDir}`);
 
-          // First, turn to face the target direction (if needed)
-          if (turnAngle !== 0) {
-            console.log(`Turning ${turnAngle}° to face ${targetDir}`);
-            const turnResult = await window.robot.turnAngle(turnAngle);
-            if (turnResult && !turnResult.success) {
-              console.error("Turn command failed:", turnResult.error);
-            }
-
-            // Calculate turn duration and wait for it to complete
-            const turnSpeed = 120.0; // degrees per second (normal speed)
-            const turnDuration = (Math.abs(turnAngle) / turnSpeed) * 1000;
-            const turnWaitTime = turnDuration + 500; // Add buffer
-            console.log(`Waiting ${turnWaitTime}ms for turn to complete...`);
-            await new Promise((resolve) => setTimeout(resolve, turnWaitTime));
-          }
-
-          // Then, move forward 24 inches (1 grid unit)
-          console.log(`Moving forward 24 inches (now facing ${targetDir})`);
-          const moveResult = await window.robot.moveDistance(24, "normal");
-          if (moveResult && !moveResult.success) {
-            console.error("Move command failed:", moveResult.error);
-          }
-
-          // Calculate move duration and wait for it to complete
-          const moveSpeed = 3.0; // inches per second (normal speed)
-          const moveDuration = (24 / moveSpeed) * 1000;
-          const moveWaitTime = moveDuration + 500; // Add buffer
-          console.log(`Waiting ${moveWaitTime}ms for movement to complete...`);
-          await new Promise((resolve) => setTimeout(resolve, moveWaitTime));
-        } catch (error) {
-          console.error("Arduino command failed:", error);
-          // Don't let errors crash the renderer - just log and continue
-        }
-      }
+      // Wait 5 seconds for movement simulation
+      await new Promise((resolve) => setTimeout(resolve, 5000));
 
       // Update state after movement (only if still mounted)
       if (!isMountedRef.current) {
@@ -302,14 +231,6 @@ export default function DeliverySystem({
         });
 
         if (tableAtPosition) {
-          // Send LED command to Arduino when robot arrives at table
-          const tableNumber = parseInt(tableAtPosition.replace("T", ""));
-          if (arduinoConnected && tableNumber >= 1 && tableNumber <= 3) {
-            window.robot.tableArrived(tableNumber).catch((error) => {
-              console.error("Failed to turn on table LED:", error);
-            });
-          }
-
           return {
             ...prev,
             currentStep: nextStep,
@@ -344,17 +265,6 @@ export default function DeliverySystem({
 
   const confirmDelivery = () => {
     if (isMountedRef.current) {
-      // Send LED off command to Arduino when delivery is confirmed
-      const currentTable = deliveryState.currentTable;
-      if (currentTable && arduinoConnected) {
-        const tableNumber = parseInt(currentTable.replace("T", ""));
-        if (tableNumber >= 1 && tableNumber <= 3) {
-          window.robot.tableReceived(tableNumber).catch((error) => {
-            console.error("Failed to turn off table LED:", error);
-          });
-        }
-      }
-
       setDeliveryState((prev) => ({
         ...prev,
         showModal: false,
@@ -363,15 +273,12 @@ export default function DeliverySystem({
         deliveryStatus: "moving",
       }));
 
-      // Continue to next step after a delay (allow time for Arduino if connected)
-      setTimeout(
-        () => {
-          if (!isMovingRef.current && isMountedRef.current) {
-            moveRobot();
-          }
-        },
-        arduinoConnected ? 1000 : 500
-      );
+      // Continue to next step after a short delay
+      setTimeout(() => {
+        if (!isMovingRef.current && isMountedRef.current) {
+          moveRobot();
+        }
+      }, 500);
     }
   };
 
@@ -380,25 +287,21 @@ export default function DeliverySystem({
     // Here you would typically send a notification to staff
   };
 
-  // Auto-move robot with proper timing for Arduino synchronization
+  // Auto-move robot
   useEffect(() => {
     // Only trigger on currentStep changes when ready to move
     if (
       deliveryState.isMoving &&
       deliveryState.deliveryStatus === "moving" &&
-      !obstructed &&
       !isMovingRef.current // Don't trigger if already moving
     ) {
       console.log(`Scheduling moveRobot for step ${deliveryState.currentStep}`);
-      const timer = setTimeout(
-        () => {
-          // Double-check before calling
-          if (!isMovingRef.current && isMountedRef.current) {
-            moveRobot();
-          }
-        },
-        arduinoConnected ? 1000 : 500
-      ); // Short delay since commands return immediately now
+      const timer = setTimeout(() => {
+        // Double-check before calling
+        if (!isMovingRef.current && isMountedRef.current) {
+          moveRobot();
+        }
+      }, 500);
 
       return () => {
         console.log("Clearing moveRobot timer");
@@ -409,7 +312,6 @@ export default function DeliverySystem({
     deliveryState.currentStep, // Only trigger on step changes
     deliveryState.isMoving,
     deliveryState.deliveryStatus,
-    obstructed,
   ]);
 
   // Additional safety: Keep renderer responsive during long operations
@@ -510,11 +412,7 @@ export default function DeliverySystem({
         <div className="text-center">
           <span className="compact-text text-gray-600">
             {deliveryState.deliveryStatus === "moving" &&
-              !obstructed &&
               "Moving to next location..."}
-            {deliveryState.deliveryStatus === "moving" &&
-              obstructed &&
-              "Paused: Obstacle detected (within 8 inches)"}
             {deliveryState.deliveryStatus === "arrived" &&
               `Arrived at ${deliveryState.currentTable}`}
             {deliveryState.deliveryStatus === "complete" &&
@@ -658,18 +556,6 @@ export default function DeliverySystem({
           Delivering to {selectedTables.length} table
           {selectedTables.length > 1 ? "s" : ""}
         </p>
-
-        {/* Arduino Connection Status */}
-        <div className="mt-2 flex items-center justify-center gap-2">
-          <div
-            className={`w-2 h-2 rounded-full ${
-              arduinoConnected ? "bg-green-500" : "bg-red-500"
-            }`}
-          ></div>
-          <span className="compact-text text-xs text-gray-500">
-            Arduino: {arduinoConnected ? "Connected" : "Disconnected"}
-          </span>
-        </div>
       </div>
 
       {/* Map */}
